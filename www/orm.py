@@ -18,7 +18,7 @@ async def create_pool(loop,**kw):
 		user=kw['user'],
 		password=kw['password'],
 		db=kw['db'],
-		charset=kw.get('charset','utf-8'), #缺省情况设置编码
+		charset=kw.get('charset','utf8'), #缺省情况设置编码,注意是utf8，utf-8会报错！
 		autocommit=kw.get('autocommit',True), #自动提交事务
 		maxsize=kw.get('maxsize',10),
 		minsize=kw.get('minsize',1),
@@ -41,7 +41,7 @@ async def select(sql,args,size=None):
 		return rs
 
 #构建一个execute函数处理执行INSERT、UPDATE、DELETE所需参数
-async def execute(sql,asgs,autocommit=True):
+async def execute(sql,args,autocommit=True):
 	log(sql)
 	async with __pool.get() as conn:
 		if not autocommit:
@@ -122,7 +122,7 @@ class ModelMetaclass(type):
 		for k,v in attrs.items():
 			if isinstance(v,Field):
 				logging.info('  found mapping: %s ==> %s' % (k,v))
-				mapping[k] = v
+				mappings[k] = v
 				if v.primary_key:
 					#找到主键：
 					if primaryKey:
@@ -134,15 +134,15 @@ class ModelMetaclass(type):
 			raise Exception('Primary key not found.')
 		for k in mappings.keys():
 			attrs.pop(k)
-		escaped_field = list(map(lambda f: '`%s`' % f,fields))
+		escaped_fields = list(map(lambda f: '`%s`' % f,fields))
 		attrs['__mappings__'] = mappings #保存属性和列的映射关系
 		attrs['__tables__'] = tableName
 		attrs['__primary_key__'] = primaryKey #主键属性名
 		attrs['__fields__'] = fields #除主键外的属性名
 		#构造默认的SELECT、INSERT、UPDATE、DELETE语句：
 		attrs['__select__'] = 'select `%s`,%s from `%s`' % (primaryKey,', '.join(escaped_fields),tableName)
-		attrs['__insert__'] = 'insert into `%s` (%s,`%s`) values (%s)' % (tableName,', '.join(escaped_fields),primaryKey,create_args_string(len(escaped_field)+1))
-		attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (tableName,', '.join(map(lambda f: '`%s`=?' % (mapping.get(f).name or f),fields)),primaryKey)
+		attrs['__insert__'] = 'insert into `%s` (%s,`%s`) values (%s)' % (tableName,', '.join(escaped_fields),primaryKey,create_args_string(len(escaped_fields)+1))
+		attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (tableName,', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f),fields)),primaryKey)
 		attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName,primaryKey)
 		return type.__new__(cls,name,bases,attrs)
 #任何继承自Model的类如User，会自动通过ModelMetaclass扫描映射关系，
