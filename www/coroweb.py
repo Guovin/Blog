@@ -24,7 +24,7 @@ def get(path):
 		return wrapper
 	return decorator
 
-def psot(path):
+def post(path):
 	'''
 	Define decorator @post('/path')
 	'''
@@ -65,7 +65,7 @@ def has_var_kw_args(fn):
 		if param.kind == inspect.Parameter.VAR_KEYWORD:
 			return True
 
-def has_request_arg(fn):
+def has_request_args(fn):
 	sig = inspect.signature(fn)
 	params = sig.parameters
 	found = False
@@ -82,15 +82,15 @@ class RequestHandler(object):
 	def __init__(self,app,fn):
 		self._app = app
 		self._func = fn
-		self._has_request_arg = has_request_arg(fn)
-		self._has_var_kw_arg = has_var_kw_arg(fn)
+		self._has_request_args = has_request_args(fn)
+		self._has_var_kw_args = has_var_kw_args(fn)
 		self._has_named_kw_args = has_named_kw_args(fn)
 		self._named_kw_args = get_named_kw_args(fn)
 		self._required_kw_args = get_required_kw_args(fn)
 
 	async def __call__(self,request):
 		kw = None
-		if self._has_var_kw_arg or self._has_named_kw_args or self._required_kw_args:
+		if self._has_var_kw_args or self._has_named_kw_args or self._required_kw_args:
 			if request.method == 'POST':
 				if not request.content_type:
 					return web.HTTPBadRequest('Missing Content-Type.')
@@ -114,7 +114,7 @@ class RequestHandler(object):
 		if kw is None:
 			kw = dict(**request.match_info)
 		else:
-			if not self._has_var_kw_arg and self._named_kw_args:
+			if not self._has_var_kw_args and self._named_kw_args:
 				#remove all unamed kw:
 				copy = dict()
 				for name in self._named_kw_args:
@@ -126,7 +126,7 @@ class RequestHandler(object):
 				if k in kw:
 					logging.warning('Duplicate arg name in named arg and kw args: %s' % k)
 				kw[k] = v
-		if self._has_request_arg:
+		if self._has_request_args:
 			kw['request'] = request
 		#check required kw:
 		if self._required_kw_args:

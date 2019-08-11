@@ -12,7 +12,7 @@ configs = {
 	'db':{
 	'host':'127.0.0.1',
 	'port':3306,
-	'user':'Such',
+	'user':'Blog',
 	'password':'1234567',
 	'db':'awesome'
 	},
@@ -20,5 +20,3 @@ configs = {
 	'secret':'Awesome'
 	}
 }
-
-print(configs.items())
