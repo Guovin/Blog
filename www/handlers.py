@@ -9,6 +9,8 @@ __author__ = 'Scuh'
 
 import re,time,json,logging,hashlib,base64,asyncio
 
+import markdown2
+
 from aiohttp import web
 
 from coroweb import get,post
@@ -33,6 +35,18 @@ async def index(request):
 		'blogs':blogs,
 		'__user__': request.__user__
 	}
+
+@get('/api/users')
+async def api_get_users(*,page='1'):
+	page_index = get_page_index(page)
+	num = await User.findNumber('count(id)')
+	p = Page(num,page_index)
+	if num == 0:
+		return dict(page=p,users=())
+	users = await User.findAll(orderBy='created_at desc',limit=(p.offset,p.limit))
+	for u in users:
+		u.passwd = '******'
+	return dict(page=p,users=users)
 
 _RE_EMAIL = re.compile(r'^[a-z0-9\.\-\_]+\@[a-z0-9\-\_]+(\.[a-z0-9\-\_]+){1,4}$')
 _RE_SHA1 = re.compile(r'^[0-9a-f]{40}$')
@@ -144,6 +158,13 @@ def signout(request):
 	logging.info('user signed out.')
 	return r
 
+@get('/manage/users')
+def manage_users(*,page='1'):
+	return{
+		'__template__': 'manage_users.html',
+		'page_index': get_page_index(page)
+	}
+
 @get('/manage/blogs/create')
 def manage_create_blog():
 	return{
@@ -201,3 +222,72 @@ def manage_blogs(*,page='1'):
 		'__template__':'manage_blogs.html',
 		'page_index':get_page_index(page)
 	}
+
+def text2html(text):
+	lines = map(lambda s: '<p>%s<p>' % s.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;'),filter(lambda s: s.strip() != '',text.split('\n')))
+	return ''.join(lines)
+
+@get('/blog/{id}')#id要对应数据表中的id(很长的一串！不是0,1)
+async def get_blog(id):
+	blog = await Blog.find(id)
+	comments = await Comment.findAll('blog_id=?',[id],orderBy='created_at desc')
+	for c in comments:
+		c.html_content = text2html(c.content)
+	blog.html_content = markdown2.markdown(blog.content)
+	return{
+		'__template__': 'blog.html',
+		'blog': blog,
+		'comments': comments
+	}
+
+@get('/manage/')
+def manage():
+	return 'redirect:/manage/comments'
+
+@get('/manage/comments')
+def manage_comments(*,page='1'):
+	return {
+		'__template__': 'manage_comments.html',
+		'page_index': get_page_index(page)
+
+	}
+
+@get('/api/comments')
+async def api_comments(*,page='1'):
+	page_index = get_page_index(page)
+	num = await Comment.findNumber('count(id)')
+	p = Page(num,page_index)
+	if num == 0:
+		return dict(page=p,comments=())
+	comments = await Comment.findAll(orderBy='created_at desc',limit=(p.offset,p.limit))
+	return dict(page=p,comments=comments)
+
+@post('/api/blogs/{id}/comments')
+async def api_create_comment(id,request,*,content):
+	user = request.__user__
+	if user is None:
+		raise APIPermissionError('Please signin first.')
+	if not content or not content.strip():
+		raise APIValueError('content')
+	blog = await Blog.find(id)
+	if blog is None:
+		raise APIResourceNotFoundError('Blog')
+	comment = Comment(blog_id=blog.id,user_id=user.id,user_name=user.name,user_image=user.image,content=content.strip())
+	await comment.save()
+	return comment
+
+@post('/api/comments/{id}/delete')
+async def api_delete_comments(id,request):
+	check_admin(request)
+	c = await Comment.find(id)
+	if c is None:
+		raise APIResourceNotFoundError('Comment')
+	await c.remove()
+	return dict(id=id)
+
+@post('/api/blogs/{id}/delete')
+async def api_delete_blog(request,*,id):
+	check_admin(request)
+	blog = await Blog.find(id)
+	await blog.remove()
+	return dict(id=id)
