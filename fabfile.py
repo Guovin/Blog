@@ -5,10 +5,10 @@ Deployment toolkit in windows envirement.
 import os, re, tarfile
 from datetime import datetime
 from fabric.api import *
-env.user = 'such'
+env.user = 'root'
 env.sudo_user = 'root'
 # env.hosts = ['123.123.123.123']
-env.host_string = '192.168.43.48' # 改成你的服务器ip
+env.host_string = '47.106.33.242' # 改成你的服务器ip
 db_user = 'Blog'
 db_password = '1234567'
 _TAR_FILE = 'dist-awesome.tar.gz'
@@ -31,7 +31,7 @@ def build():
     tar.close()
 def deploy():
     newdir = 'www-%s' % _now()
-    run('rm -f %s' % _REMOTE_TMP_TAR)
+    run('rm -rf %s' % _REMOTE_TMP_TAR)
     put('dist/%s' % _TAR_FILE, _REMOTE_TMP_TAR)
     with cd(_REMOTE_BASE_DIR):
         sudo('mkdir %s' % newdir)
@@ -42,10 +42,10 @@ def deploy():
         sudo('dos2unix app.py')     # 解决windows和linux行尾换行不同问题
         sudo('chmod a+x app.py')    # 使app.py可直接执行
     with cd(_REMOTE_BASE_DIR):
-        sudo('rm -f www')               # 删除旧软链接
+        sudo('rm -rf www')               # 删除旧软链接
         sudo('ln -s %s www' % newdir)   # 创建新链接
-        sudo('chown such:such www') # user改为你的linux服务器上的用户名
-        sudo('chown -R such:such %s' % newdir) # 同上
+        sudo('chown root:root www') # user改为你的linux服务器上的用户名
+        sudo('chown -R root:root %s' % newdir) # 同上
     with settings(warn_only=True):
         sudo('supervisorctl stop awesome') # supervisor重启app
         sudo('supervisorctl start awesome')
@@ -89,7 +89,7 @@ def rollback():
             print('Rollback cancelled.')
             return
         print('Start rollback...')
-        sudo('rm -f www')
+        sudo('rm -rf www')
         sudo('ln -s %s www' % old)
         sudo('chown www-data:www-data www')
         with settings(warn_only=True):
@@ -107,8 +107,8 @@ def backup():
         run('mysqldump --user=%s --password=%s --skip-opt --add-drop-table --default-character-set=utf8 --quick awesome > %s' % (db_user, db_password, f))
         run('tar -czvf %s.tar.gz %s' % (f, f))
         get('%s.tar.gz' % f, '%s/backup/' % _current_path())
-        run('rm -f %s' % f)
-        run('rm -f %s.tar.gz' % f)
+        run('rm -rf %s' % f)
+        run('rm -rf %s.tar.gz' % f)
 def restore2local():
     '''
     Restore db to local
